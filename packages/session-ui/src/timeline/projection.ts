@@ -796,8 +796,6 @@ function renderable(content: Content, showReasoning: boolean, detail?: TimelineD
 
   if (detail && currentToolFailed(content)) return true
 
-  if (content.name === "todowrite") return false
-
   if (content.name === "question") return content.state.status !== "streaming" && content.state.status !== "running"
 
   if (detail && detail[timelineCategory(content)!].placement === "hidden") return false

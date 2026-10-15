@@ -207,6 +207,13 @@ const source = {
   "ui.tool.agent.default": "Agent",
   "ui.tool.agent.delegating": "Delegating agent…",
   "ui.tool.skill": "Skill",
+  "ui.tool.todo": "Todo",
+  "ui.tool.todo.empty": "No tasks",
+  "ui.tool.todo.progress.one": "{{count}} of {{total}} done",
+  "ui.tool.todo.progress.other": "{{count}} of {{total}} done",
+  "ui.tool.todo.status.pending": "Pending",
+  "ui.tool.todo.status.inProgress": "In progress",
+  "ui.tool.todo.status.done": "Done",
 
   "ui.basicTool.called": "Called `{{tool}}`",
   "ui.toolErrorCard.failed": "Failed",

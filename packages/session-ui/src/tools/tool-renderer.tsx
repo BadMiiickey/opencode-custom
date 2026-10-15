@@ -121,6 +121,7 @@ const toolInput = Schema.decodeUnknownSync(
     id: optional(Schema.String),
     name: optional(Schema.String),
     questions: optional(Schema.Array(Schema.Unknown)),
+    todos: optional(Schema.Array(Schema.Unknown)),
   }),
 )
 
@@ -350,6 +351,8 @@ function toolTitle(tool: SessionMessageAssistantTool, i18n: UiI18n) {
       return i18n.t("ui.tool.agent.default")
     case "shell":
       return i18n.t("ui.tool.shell")
+    case "todowrite":
+      return i18n.t("ui.tool.todo")
     case "execute":
       return i18n.t("ui.tool.execute")
     case "edit":
@@ -1342,7 +1345,6 @@ export function ToolDisplay(
   const data = useData()
   const i18n = useI18n()
 
-  if (props.tool === "todowrite") return null
   const hideQuestion = () => props.tool === "question" && (props.status === "streaming" || props.status === "running")
 
   const taskId = createMemo(() => {
@@ -2202,6 +2204,82 @@ ToolRegistry.register({
           </ToolFileAccordion>
         </Show>
         <DiagnosticsDisplay diagnostics={diagnostics()} />
+      </div>
+    )
+  },
+})
+
+const todoItem = Schema.Struct({
+  title: Schema.String,
+  status: Schema.Literals(["pending", "in_progress", "done"]),
+})
+
+const todoInput = Schema.Struct({ todos: Schema.Array(todoItem) })
+
+const decodeTodoInput = Schema.decodeUnknownOption(todoInput)
+
+ToolRegistry.register({
+  name: "todowrite",
+  render(props) {
+    const i18n = useI18n()
+    const todos = createMemo(() => {
+      const value = decodeTodoInput(props.input)
+
+      return Option.isSome(value) && Array.isArray(value.value.todos) ? value.value.todos : []
+    })
+    const done = createMemo(() => todos().filter((item) => item.status === "done").length)
+
+    const statusLabel = (status: (typeof todoItem)["Type"]["status"]) => {
+      if (status === "done") return i18n.t("ui.tool.todo.status.done")
+      if (status === "in_progress") return i18n.t("ui.tool.todo.status.inProgress")
+      return i18n.t("ui.tool.todo.status.pending")
+    }
+
+    return (
+      <div data-component="todo-tool" class="flex flex-col gap-1">
+        <div class="flex items-center gap-2 text-12-regular text-text-weak">
+          <Icon name="check" size="small" />
+          <span class="text-weak-strong">{i18n.t("ui.tool.todo")}</span>
+          <Show when={todos().length > 0}>
+            <span>{i18n.plural("ui.tool.todo.progress", done(), { total: todos().length })}</span>
+          </Show>
+        </div>
+        <Show
+          when={todos().length > 0}
+          fallback={<span class="text-13-regular text-text-weak">{i18n.t("ui.tool.todo.empty")}</span>}
+        >
+          <ul class="flex flex-col gap-1">
+            <For each={todos()}>
+              {(item) => (
+                <li
+                  data-component="todo-item"
+                  data-status={item.status}
+                  class="flex items-start gap-2 text-13-regular"
+                >
+                  <span
+                    class="mt-[3px] flex size-3 shrink-0 items-center justify-center"
+                    classList={{
+                      "text-text-faint": item.status === "pending",
+                      "text-text-accent": item.status === "in_progress",
+                      "text-text-weak": item.status === "done",
+                    }}
+                  >
+                    <Show
+                      when={item.status === "done"}
+                      fallback={<span class="size-[4px] rounded-full bg-current" />}
+                    >
+                      <Icon name="check" size="small" />
+                    </Show>
+                  </span>
+                  <span class={item.status === "done" ? "text-text-weak line-through" : undefined}>
+                    {item.title}
+                  </span>
+                  <span class="sr-only">{statusLabel(item.status)}</span>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
       </div>
     )
   },
