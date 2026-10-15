@@ -96,11 +96,23 @@
 
 ### 待实施
 
-- [ ] **常驻面板**（数据来源已裁定为**路线 A · 折叠历史**）：
-      在输入框上方放固定位置的面板，永远显示**当前**清单、原地更新，
-      而不是像现在这样每次调用在时间线里追加一块。数据用 `lastWrittenList()` 同款逻辑折叠历史得到，
-      不新建独立文档实体。参考形态（kimi-code TUI）：最多 5 行、完成项删除线、全部完成自动隐藏。
-      **风险**：涉及 UI 布局，我无法自行确认视觉效果，需你实机确认（Plan 按钮就经历过一轮返工）。
+- [ ] **常驻面板**（数据来源已裁定为**路线 A · 折叠历史**）
+
+      **已定位的实现位置**（2026-10-15 调查，可直接开工）：
+
+      | 项 | 位置 |
+      | --- | --- |
+      | 渲染插入点 | `packages/app/src/session/composer/region.tsx:318`，紧邻既有的 `SessionQueuePanel`，两者同在 `<div class="relative">` 内、`Composer` 之上 |
+      | 可效仿的既有模式 | `SessionQueuePanel`（`session/composer/queue-panel.tsx:18`）接收一个 view model prop，由 region 传入 |
+      | 数据来源 | `session` model 已暴露 `messages()`（`session/model.ts:65`，内部为 `data.session.message.list(id)`）；`createActiveSessionRegion` 已接收 `session` 与 `timeline`（`session/screen.tsx:216`） |
+      | 折叠逻辑 | 与 core 侧 `lastWrittenList()` 同构：倒序找最后一个 `todowrite` 工具调用，取其 `input.todos` |
+      | 文案 | 复用已有的 `ui.tool.todo` / `.progress` / `.status.*` 键，无需新增 |
+
+      **建议的最小版本**（降低返工成本）：仅在存在清单时显示；最多 5 行，超出显示「还有 N 项」；
+      完成项删除线；全部完成时隐藏；不做交互与动画。
+
+      **为什么没有直接动手**：这是纯视觉功能，我无法自行确认效果。Plan 按钮已因「按钮无激活态」
+      返工过一轮，故先落方案再实施。用户确认设计后开工成本很低。
 
 ## 完成记录
 
