@@ -45,14 +45,34 @@ export function same(left: Info, right: Info) {
   return left.id === right.id && left.version === right.version && left.url === right.url && left.pid === right.pid
 }
 
+/**
+ * The address a local service actually answers on.
+ *
+ * A service bound to a wildcard address is reachable on loopback, so that is what a probe should use.
+ * Probing the wildcard itself fails twice over: `0.0.0.0` is not a connectable address on Windows, and
+ * it is normally absent from NO_PROXY, so the request is handed to an HTTP proxy that cannot reach it.
+ */
+export function reachableUrl(url: string) {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+  if (parsed.hostname === "0.0.0.0") parsed.hostname = "127.0.0.1"
+  else if (parsed.hostname === "[::]" || parsed.hostname === "::") parsed.hostname = "[::1]"
+  return parsed.toString()
+}
+
 /** Ask a registered owner for its health and classify the answer. */
 export async function probeResult(info: Info, timeout = defaultEnsureTiming.requestTimeout) {
+  const url = reachableUrl(info.url)
   const endpoint = {
-    url: info.url,
+    url,
     auth: info.password === undefined ? undefined : { type: "basic", username: "opencode", password: info.password },
   } satisfies Endpoint
   const signal = AbortSignal.timeout(timeout)
-  const result = await fetch(new URL("/api/info", info.url), { headers: headers(endpoint), signal })
+  const result = await fetch(new URL("/api/info", url), { headers: headers(endpoint), signal })
     .then(async (response) => ({
       response,
       body: response.status === 404 ? undefined : ((await response.json()) as unknown),
