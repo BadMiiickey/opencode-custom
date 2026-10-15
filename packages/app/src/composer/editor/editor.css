@@ -25,12 +25,8 @@
   );
 }
 
-@media (hover: hover) {
-  [data-component="composer"]:not(:hover) .composer-variant-default:not(:focus-visible, [data-expanded]) {
-    opacity: 0;
-    pointer-events: none;
-  }
-}
+/* The "Default" variant chip used to fade out while the pointer was away from the composer. It stays
+   visible so the control is always discoverable, matching the local preference. */
 
 [data-color-scheme="dark"] [data-component="composer"][data-dock-border-underlay="true"],
 [data-color-scheme="dark"] [data-component="session-composer-dock"] [data-component="composer"],

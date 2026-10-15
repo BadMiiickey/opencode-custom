@@ -102,28 +102,44 @@ function optional<S extends Schema.ConstraintCodec<unknown, unknown>>(schema: S)
   return Schema.catchDecoding<typeof field>(() => Effect.succeed(Option.none()))(field)
 }
 
-const toolInput = Schema.decodeUnknownSync(
-  Schema.Struct({
-    path: optional(Schema.String),
-    pattern: optional(Schema.String),
-    include: optional(Schema.String),
-    offset: optional(Schema.Number),
-    limit: optional(Schema.Number),
-    url: optional(Schema.String),
-    query: optional(Schema.String),
-    agent: optional(Schema.String),
-    description: optional(Schema.String),
-    command: optional(Schema.String),
-    code: optional(Schema.String),
-    oldString: optional(Schema.String),
-    newString: optional(Schema.String),
-    content: optional(Schema.String),
-    id: optional(Schema.String),
-    name: optional(Schema.String),
-    questions: optional(Schema.Array(Schema.Unknown)),
-    todos: optional(Schema.Array(Schema.Unknown)),
-  }),
-)
+const ToolInput = Schema.Struct({
+  path: optional(Schema.String),
+  pattern: optional(Schema.String),
+  include: optional(Schema.String),
+  offset: optional(Schema.Number),
+  limit: optional(Schema.Number),
+  url: optional(Schema.String),
+  query: optional(Schema.String),
+  agent: optional(Schema.String),
+  description: optional(Schema.String),
+  command: optional(Schema.String),
+  code: optional(Schema.String),
+  oldString: optional(Schema.String),
+  newString: optional(Schema.String),
+  content: optional(Schema.String),
+  id: optional(Schema.String),
+  name: optional(Schema.String),
+  questions: optional(Schema.Array(Schema.Unknown)),
+  todos: optional(Schema.Array(Schema.Unknown)),
+})
+
+const decodeToolInput = Schema.decodeUnknownOption(ToolInput)
+
+/** Every field is optional, so an empty object is a valid instance to fall back to. */
+const emptyToolInput: typeof ToolInput.Type = {}
+
+/**
+ * Decodes a tool part's input, tolerating anything a part can hold while it streams.
+ *
+ * The field-level `optional()` helper absorbs a malformed value on its own, but decoding the whole struct
+ * threw when the input was not an object at all (null, undefined, a bare string). That turned a partially
+ * arrived part into a renderer crash, so the decode returns a fallback instead of raising.
+ */
+const toolInput = (input: unknown) => {
+  const value = decodeToolInput(input)
+
+  return Option.isSome(value) ? value.value : emptyToolInput
+}
 
 const toolMetadata = Schema.decodeUnknownSync(
   Schema.Struct({
