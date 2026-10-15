@@ -891,6 +891,9 @@ function toolGroupType(
 ) {
   if (detail) {
     if (content.name === "question" && !currentToolFailed(content)) return undefined
+    // The todo list carries its own renderer, so it stays a row of its own instead of folding into a
+    // context group of lookups where it would be collapsed away.
+    if (content.name === "todowrite") return undefined
     const category = timelineCategory(content)!
 
     if (detail[category].placement === "grouped") return "context"
@@ -904,7 +907,8 @@ function toolGroupType(
     return undefined
   }
 
-  if (content.name === "question" || currentToolHasLoadedFiles(content)) return undefined
+  if (content.name === "question" || content.name === "todowrite" || currentToolHasLoadedFiles(content))
+    return undefined
 
   if (content.state.status === "error") {
     if ((content.name === "shell" || content.name === "execute") && shellExpanded) return undefined

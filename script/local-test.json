@@ -36,6 +36,7 @@
       },
       {
         "name": "typecheck",
+        "kind": "build",
         "cwd": ".",
         "args": ["run", "check"],
         "timeoutMs": 900000,

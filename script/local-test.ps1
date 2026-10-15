@@ -85,9 +85,20 @@ foreach ($suite in $config.suites) {
   }
   $elapsed = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
 
-  # Parse only the summary lines so the full output never floods the terminal.
-  $summary = ($output -split "`n" | Where-Object { $_ -match "^\s*\d+ (pass|fail|skip)" }) -join " "
-  if (-not $summary) { $summary = "(no summary line parsed)" }
+  # Read each counter on its own so a suite reports pass/fail/skip even when the summary spans lines with
+  # different leading whitespace. Matching the whole summary with one anchored pattern silently dropped
+  # the fail and skip counts.
+  $summary =
+    if ($suite.kind -eq "build") {
+      "build gate"
+    } else {
+      $counts = foreach ($name in @("pass", "fail", "skip")) {
+        $found = [regex]::Match($output, "(?m)^\s*(\d+)\s+$name\s*$")
+        if ($found.Success) { "$($found.Groups[1].Value) $name" }
+      }
+
+      if ($counts) { $counts -join " / " } else { "(no test summary parsed)" }
+    }
 
   $results += [PSCustomObject]@{
     Suite   = $suite.name

@@ -755,6 +755,13 @@ describe("current session timeline rows", () => {
           { messageID: "msg_assistant", partID: "tool_grep" },
         ],
       },
+      // The todo list renders its own checklist, so it is a row of its own rather than a member of the
+      // context group above, where it would be collapsed away with the lookups.
+      {
+        type: "part",
+        key: "part:msg_assistant:tool_todo",
+        ref: { messageID: "msg_assistant", partID: "tool_todo" },
+      },
       {
         type: "part",
         key: "part:msg_assistant:msg_assistant:text:1",
