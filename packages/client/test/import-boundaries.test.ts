@@ -39,7 +39,9 @@ describe("public import boundaries", () => {
     const effectService = await bundleInputs("@opencode/client/effect/service", "bun")
 
     expect(within(effectService.eager, effect).length).toBeGreaterThan(0)
-    expect(within(effectService.eager, protocol).length).toBeGreaterThan(0)
+    // Both service entrypoints drive the same local lifecycle modules and probe the service over fetch, so
+    // neither reaches protocol. This mirrors the promise case above.
+    expect(within(effectService.eager, protocol)).toEqual([])
     expect(within(effectService.all, core)).toEqual([])
     expect(within(effectService.all, server)).toEqual([])
   })
