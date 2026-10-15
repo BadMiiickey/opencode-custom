@@ -25,9 +25,10 @@
 | --- | --- | --- | --- |
 | 环境与工具链 | ✅ 可用 | Go/Bun/Electron 装好，dev 桌面端可从源码启动 | [`environment_plan.md`](environment_plan.md) |
 | 服务探测修复 | ✅ 已验证 | 上游缺陷：通配地址被代理拦截导致 dev 起不来 | [`service-probe_plan.md`](service-probe_plan.md) |
-| todo 功能 | 🔶 待端到端验证 | 工具 + `/todo` 命令 + 提醒注入 + 时间线渲染均已实现并有测试 | [`todo_plan.md`](todo_plan.md) |
-| Plan 模式切换 | 🔶 待定位 | 按钮已实现，点击无反馈，诊断代码已铺、结果未回收 | [`plan-mode_plan.md`](plan-mode_plan.md) |
-| 测试套件健康度 | 🔶 部分阻塞 | 新增测试全绿；既有失败 62 项未排查 | [`issues_backlog.md`](issues_backlog.md) |
+| todo 功能 | 🔶 待实机确认观感 | 工具 + `/todo` 命令 + 提醒注入 + 时间线渲染 + **常驻面板**均实现并有测试 | [`todo_plan.md`](todo_plan.md) |
+| Plan 模式切换 | ✅ 已验证 | 用户实测：激活态明显，切模式后模型保持不变 | [`plan-mode_plan.md`](plan-mode_plan.md) |
+| 服务优雅停机 | ✅ 已实施 | 撤回注册优先于信号；client 全量失败 13 → 0 条 | [`../reference/windows-graceful-shutdown.md`](../reference/windows-graceful-shutdown.md) |
+| 测试套件健康度 | ✅ 大幅改善 | app / session-ui / client 全绿；core 剩 26 项环境类既有失败 | [`issues_backlog.md`](issues_backlog.md) |
 
 图例：✅ 已验证 · 🔶 待验证/进行中 · ❌ 阻塞
 
@@ -43,6 +44,10 @@
 | 2026-10-14 | todo 工具 + 渲染链路重建 | `packages/core/src/tool/plugin/todo.ts` |
 | 2026-10-15 | todo 渲染崩溃修复 | `decodeUnknownOption` 替换抛异常的 `optional()` |
 | 2026-10-15 | 新增测试 30 例全绿 | core 16 · session-ui 7 · client 7 |
+| 2026-10-15 | 环境修正脚本 `script/local-test.ps1` | core 既有失败 46 → 26 条（TEMP / SHELL_SCAN_PWSH / 超时三项修正） | 
+| 2026-10-15 | 服务优雅停机：撤回注册优先于信号 | client 全量失败 13 → 4 → **0**（同命令全量对照，消除 11 条） |
+| 2026-10-15 | 常驻 todo 面板（折叠 + 组件 + 接线 + 6 例测试） | app 全量 **752 pass / 0 fail** |
+| 2026-10-15 | 契约断言修复 · R-1 解码器 · 变体芯片常显 | 权威校验 `bun run check` **36/36 exit 0** |
 
 ---
 
