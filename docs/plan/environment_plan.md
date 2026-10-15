@@ -77,6 +77,21 @@ dev 桌面端崩溃时，它 spawn 的 CLI 服务进程**不会自动退出**，
 
 用它包住长命令后，进程结束前看不到任何进度。排查长时间任务时不要这样包。
 
+### 单包的增量 typecheck 会掩盖错误，必须跑根目录的 `check`
+
+各包的 `typecheck` 脚本是 `tsgo -b`（**增量构建**）。命中缓存时它会直接返回成功，
+**不会报出真实存在的类型错误**。
+
+实测（2026-10-15）：`packages/session-ui` 新增的测试文件里有两处类型错误，
+在包内跑 `bun run typecheck` 返回 **exit 0**；而根目录 `bun run check`
+用不同缓存状态重建后报出这两处错误并使推送被 pre-push 钩子拦下。
+
+**规则**：改动任何 `.ts` / `.tsx` 后，以根目录 `bun run check` 为唯一判定依据。
+怀疑缓存时删掉包内的 `node_modules/.ts-dist` 强制重建。
+
+`.husky/` 的 pre-push 钩子跑的正是 `bun run check`，所以**推送被拦 = 校验未过**，
+不是推送本身的问题。
+
 ### PowerShell 5.1 把无 BOM 的 UTF-8 当 ANSI 读（连踩两次）
 
 本机默认 shell 是 Windows PowerShell 5.1，它**不假定 `.ps1` / `.json` 是 UTF-8**：

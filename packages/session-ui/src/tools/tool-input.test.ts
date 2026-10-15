@@ -9,8 +9,9 @@ import { Effect, Option, Schema } from "effect"
  * `decodeUnknownOption` and an empty-object fallback — rather than the production symbol itself. A change
  * to the production decoder will not fail here; the structural facts it protects are listed per case below.
  */
-function optional(schema: Schema.Schema.All) {
+function optional<S extends Schema.ConstraintCodec<unknown, unknown>>(schema: S) {
   const field = Schema.optional(schema)
+
   return Schema.catchDecoding<typeof field>(() => Effect.succeed(Option.none()))(field)
 }
 
