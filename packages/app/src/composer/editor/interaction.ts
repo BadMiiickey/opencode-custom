@@ -38,6 +38,10 @@ export type ComposerEditorView = {
   }
   agent?: ComposerSelectControl
   variant?: ComposerSelectControl
+  plan?: {
+    active: Accessor<boolean>
+    toggle: () => void
+  }
   submit: {
     available?: Accessor<boolean>
     stopping: Accessor<boolean>

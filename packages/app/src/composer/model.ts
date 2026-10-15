@@ -400,6 +400,29 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
             }
           : undefined
       },
+      // Plan mode has to stay reachable while the agent list is hidden, which is the default unless
+      // the user configured an agent of their own. The agent.cycle commands are disabled in that state,
+      // so the composer offers the switch directly instead of relying on a keybind.
+      get plan() {
+        const agents = adapter.controls().agents
+        const model = adapter.controls().model.selection
+
+        if (!agents.options.includes("plan")) return undefined
+
+        return {
+          active: () => agents.current === "plan",
+          // Switching agents also applies the model remembered for that agent, which would change the
+          // user's model just because they toggled plan mode. Put the model back afterwards.
+          toggle: () => {
+            const before = model.current()
+            const key = before ? { providerID: before.provider.id, modelID: before.id } : undefined
+
+            agents.select(agents.current === "plan" ? "build" : "plan")
+
+            if (key) model.set(key)
+          },
+        }
+      },
       variant: {
         options: () => variants().map((value) => ({ id: value, label: value })),
         current: () => adapter.controls().model.selection.variant.current() ?? "default",

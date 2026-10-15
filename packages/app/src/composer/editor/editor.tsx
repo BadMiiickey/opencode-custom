@@ -368,6 +368,24 @@ export function ComposerEditor(props: ComposerEditorProps) {
                   )}
                 </Show>
               </Show>
+              <Show when={view.plan} keyed>
+                {(plan) => (
+                  <Button
+                    data-action="composer-plan"
+                    data-state={plan.active() ? "active" : "inactive"}
+                    type="button"
+                    variant={plan.active() ? "outline" : "ghost-faint"}
+                    size="small"
+                    class={plan.active() ? "text-text-strong" : undefined}
+                    title={i18n.t(plan.active() ? "ui.promptInput.planModeExit" : "ui.promptInput.planModeEnter")}
+                    aria-label={i18n.t(plan.active() ? "ui.promptInput.planModeExit" : "ui.promptInput.planModeEnter")}
+                    aria-pressed={plan.active()}
+                    onClick={plan.toggle}
+                  >
+                    {i18n.t("ui.promptInput.planMode")}
+                  </Button>
+                )}
+              </Show>
             </div>
           </div>
           <div data-slot="composer-actions" class="flex shrink-0 items-center">
