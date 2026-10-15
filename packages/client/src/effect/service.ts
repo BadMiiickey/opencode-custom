@@ -182,14 +182,25 @@ const stopped = Effect.fnUntraced(function* (pid: number) {
 const terminate = Effect.fnUntraced(function* (info: Info, options: { readonly file?: string }, timing: EnsureTiming) {
   const current = yield* read(options.file)
   if (current === undefined || !same(current, info)) return
-  yield* signal(info.pid, "SIGTERM")
+  // Withdraw the registration before signalling. The service polls its registration file and shuts itself
+  // down once the file is no longer its own, which is the only graceful channel on Windows: there SIGTERM
+  // is a hard kill, so a handler never runs and the signal-first order skipped the graceful path entirely.
+  yield* withdraw(info, options)
   const done = yield* stopped(info.pid).pipe(Effect.retry(poll(timing)), Effect.option)
   // The registration can disappear or change hands before this process exits. Only the PID we
   // signalled can tell us whether it has stopped, so escalate based on that process.
   if (Option.isNone(done)) {
-    yield* signal(info.pid, "SIGKILL")
-    yield* stopped(info.pid).pipe(Effect.retry(poll(timing)))
+    yield* signal(info.pid, "SIGTERM")
+    const terminated = yield* stopped(info.pid).pipe(Effect.retry(poll(timing)), Effect.option)
+    if (Option.isNone(terminated)) {
+      yield* signal(info.pid, "SIGKILL")
+      yield* stopped(info.pid).pipe(Effect.retry(poll(timing)))
+    }
   }
+})
+
+/** Removes the registration while it is still ours, which asks the service to stop on its own. */
+const withdraw = Effect.fnUntraced(function* (info: Info, options: { readonly file?: string }) {
   const latest = yield* read(options.file)
   if (latest === undefined || !same(latest, info)) return
   const fs = yield* FileSystem.FileSystem

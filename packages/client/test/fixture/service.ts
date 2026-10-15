@@ -122,6 +122,21 @@ await writeFile(
 )
 await rename(registration + ".tmp", registration)
 
+// The service the client actually talks to polls its registration and stops once the file is no longer its
+// own. Modelling that here is what makes a stop verifiable on Windows, where a signal cannot be delivered.
+// The production poll is five seconds; this one is short so tests stay fast.
+if (controlled !== "hang") {
+  const watch = setInterval(() => {
+    void Bun.file(registration)
+      .exists()
+      .then((present) => {
+        if (present) return
+        clearInterval(watch)
+        void shutdown()
+      })
+  }, 25)
+}
+
 async function shutdown(signal?: NodeJS.Signals) {
   if (signal !== undefined) await writeFile(registration + ".signal", signal)
   // A lingering server unregisters on SIGTERM but keeps running, and holds its port, until killed.
