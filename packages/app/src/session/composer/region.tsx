@@ -29,6 +29,8 @@ import { createSessionRevert } from "../revert"
 import { SessionComposerRegion } from "./session-composer-region"
 import { createSessionComposerController, type SessionComposerController } from "./controller"
 import { SessionQueuePanel } from "./queue-panel"
+import { selectSessionTodos } from "./todo"
+import { SessionTodoPanel } from "./todo-panel"
 import { resolveSessionComposerSelection } from "./selection"
 import { createSessionRequestModel } from "../requests/model"
 import type { Region } from "@/runtime/extension/panels"
@@ -306,6 +308,10 @@ export function ActiveSessionComposerRegion(props: {
     return { directory: info.location.directory, sessionID: info.id, projectID: info.projectID }
   })
 
+  // Folded from the message stream rather than tracked separately: the todo tool is a stateless snapshot, so
+  // the newest settled call already is the state.
+  const todos = createMemo(() => selectSessionTodos(props.session.history.messages()))
+
   return (
     <SessionComposerRegion
       controller={props.model.region}
@@ -315,6 +321,7 @@ export function ActiveSessionComposerRegion(props: {
           keyed
           fallback={
             <div class="relative">
+              <SessionTodoPanel items={todos()} />
               <SessionQueuePanel queue={props.model.queue} />
               <div class="relative z-10">
                 <Composer

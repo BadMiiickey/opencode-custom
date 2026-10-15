@@ -19,7 +19,7 @@
         "cwd": "packages/client",
         "args": ["test"],
         "timeoutMs": 300000,
-        "note": "17 Windows signal-semantics cases cannot pass here; see R-2 in docs/plan/issues_backlog.md"
+        "note": "green after the registration-first stop change; R-2 in docs/plan/issues_backlog.md records the two cases that remain flaky"
       },
       {
         "name": "app",

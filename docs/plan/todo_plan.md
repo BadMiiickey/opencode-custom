@@ -104,7 +104,7 @@
       | --- | --- |
       | 渲染插入点 | `packages/app/src/session/composer/region.tsx:318`，紧邻既有的 `SessionQueuePanel`，两者同在 `<div class="relative">` 内、`Composer` 之上 |
       | 所在组件 | `ActiveSessionComposerRegion`（`region.tsx:292`）—— 同时持有 `props.session`（`SessionModel`）与渲染点，**无需穿过 region controller** |
-      | 数据来源 | `props.session.messages()`（`session/model.ts:65`，内部为 `data.session.message.list(id)`） |
+      | 数据来源 | **`props.session.history.messages()`** —— 注意 `messages` 挂在 **`history`** 下，不在顶层（`session/model.ts:109-114` 的返回结构为 `data` / `history` / `layout` / `ownership` 四组）。**我曾按本行最初写的 `props.session.messages()` 直接实现，typecheck 报错后才发现路径错了。** |
       | 可效仿的既有模式 | `SessionQueuePanel`（`session/composer/queue-panel.tsx:18`）接收一个 view model prop |
       | 文案 | 复用已有的 `ui.tool.todo` / `.progress` / `.status.*` 键，无需新增 |
 
