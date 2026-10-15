@@ -127,13 +127,14 @@ await rename(registration + ".tmp", registration)
 // The production poll is five seconds; this one is short so tests stay fast.
 if (controlled !== "hang") {
   const watch = setInterval(() => {
-    void Bun.file(registration)
-      .exists()
-      .then((present) => {
-        if (present) return
-        clearInterval(watch)
-        void shutdown()
-      })
+    void (async () => {
+      if (await Bun.file(registration).exists()) return
+      clearInterval(watch)
+      // The registration is gone, which is how a real service learns to stop. Record it so a test can tell
+      // a cooperative shutdown apart from a signalled one.
+      await writeFile(registration + ".withdrawn", "")
+      await shutdown()
+    })()
   }, 25)
 }
 

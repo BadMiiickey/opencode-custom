@@ -267,12 +267,14 @@ test("stops the registered service even when terminal handoff fails", async () =
 
   await Service.stop({ file: registration, pty: "handoff" })
 
-  expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
+  // Handoff prep runs first and fails; the stop still goes through the registration channel.
+  expect(await Bun.file(registration + ".withdrawn").exists()).toBe(true)
+  expect(await Bun.file(registration + ".signal").exists()).toBe(false)
   expect(await Bun.file(registration).exists()).toBe(false)
   expect((await Bun.file(registration + ".pty-handoff").json()).handoff).toBeNull()
 })
 
-test("signals the registered service process", async () => {
+test("stops the registered service process", async () => {
   await using fixture = await serviceFixture()
   const registration = fixture.registration
   fixture.spawn("graceful")
@@ -280,25 +282,32 @@ test("signals the registered service process", async () => {
 
   await Service.stop({ file: registration })
 
-  expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
+  // A cooperative service needs no signal: withdrawing the registration is the instruction to stop.
+  expect(await Bun.file(registration + ".withdrawn").exists()).toBe(true)
+  expect(await Bun.file(registration + ".signal").exists()).toBe(false)
   expect(await Bun.file(registration).exists()).toBe(false)
 })
 
 test("stop escalates when the registration disappears before the process exits", async () => {
   await using fixture = await serviceFixture()
   const registration = fixture.registration
-  const existing = fixture.spawn("lingering", "5000")
+  // Longer than the client's wait, so escalation is the only way this test can finish. At exactly the wait
+  // it would be a race between the service exiting and the client giving up.
+  const existing = fixture.spawn("lingering", "20000")
   await fixture.waitForFile()
   const original = await Bun.file(registration).json()
 
   await stop({ file: registration })
 
-  expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
+  expect(await Bun.file(registration + ".withdrawn").exists()).toBe(true)
+  // Windows never delivers SIGTERM, so the handler that records it cannot run there. The escalated kill is
+  // still observable through the process and the port, which is what this test is about.
+  if (process.platform !== "win32") expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
   expect(() => process.kill(original.pid, 0)).toThrow()
   await expectPortAvailable(original.url)
   expect(await Bun.file(registration).exists()).toBe(false)
   await existing.exited
-}, 15_000)
+}, 25_000)
 
 test.skipIf(process.platform === "win32")(
   "stop fails when the process survives SIGKILL",
@@ -312,7 +321,9 @@ test.skipIf(process.platform === "win32")(
     await expect(stop({ file: registration })).rejects.toThrow(`Server process ${original.pid} is still running`)
     expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
   },
-  15_000,
+  // Three waits now: the withdrawal, then SIGTERM, then SIGKILL. A process that survives all three has to
+  // outlast the sum of them.
+  25_000,
 )
 
 test("stop waits for the original process while preserving a newly registered successor", async () => {
@@ -345,4 +356,5 @@ test("stop waits for the original process while preserving a newly registered su
     existing.kill("SIGKILL")
     await stopping
   }
-}, 20_000)
+  // The original lingers past the client's first wait, so a stop runs all three waits before it is done.
+}, 30_000)

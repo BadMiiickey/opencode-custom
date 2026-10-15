@@ -93,6 +93,19 @@ export async function serviceFixture() {
 }
 
 export async function expectPortAvailable(url: string) {
-  const server = Bun.serve({ port: Number(new URL(url).port), fetch: () => new Response() })
-  await server.stop(true)
+  const port = Number(new URL(url).port)
+  // A process that has exited does not necessarily release its listening port at that instant, so retry
+  // briefly instead of sampling once. The assertion still holds: the port has to become free, and a port
+  // that is genuinely still held fails after the retries run out.
+  const attempts = 20
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const server = Bun.serve({ port, fetch: () => new Response() })
+      await server.stop(true)
+      return
+    } catch (error) {
+      if (attempt >= attempts) throw error
+      await Bun.sleep(100)
+    }
+  }
 }

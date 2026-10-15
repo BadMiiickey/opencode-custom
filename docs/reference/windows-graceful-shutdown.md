@@ -133,6 +133,79 @@ Node 只把控制台事件映射到 `SIGINT` / `SIGBREAK`，**没有映射 `SIGT
 
 ---
 
+### 4.3 实施结果（2026-10-15）
+
+**已按选项 A 实施**，改动三个文件：
+
+| 文件 | 改动 |
+| --- | --- |
+| `packages/client/src/promise/service.ts` | `terminate()` 抽出 `withdraw()`，**先**撤回注册再等待与升级 |
+| `packages/client/src/effect/service.ts` | 同上（Effect 版） |
+| `packages/client/test/fixture/service.ts` | 夹具新增**注册轮询**（25ms）与 `.withdrawn` 标记 |
+
+**新契约**：
+
+```
+旧：SIGTERM → 等 5s → SIGKILL → 等 5s → 删注册
+新：撤注册 → 等 5s → SIGTERM → 等 5s → SIGKILL → 等 5s → 抛错
+```
+
+**夹具为何要改**：它原先只安装 `process.on("SIGTERM")` 并写 `.signal` —— 模拟的是一条
+**真实服务并不使用的通道**。改为轮询注册文件后，`.withdrawn` 表示"因注册被撤回而自行停止"，
+`.signal` 则只在**升级**时才出现，两者可区分。
+
+**测试断言的迁移**：6 处 `.signal` = SIGTERM 的断言改为断言 `.withdrawn` 存在且 `.signal` 不存在；
+两个"升级"用例的 `lingering` 延时由 5000ms 改为 20000ms
+（原值与客户端等待预算相等，本就是骰子；改为明确长于预算后才可判定）；
+两个 `.signal` 断言加 `process.platform !== "win32"` 限定，并改为断言可观测结果
+（进程消失、端口释放、`.withdrawn` 存在）。
+
+**实测对照（全量套件，同一命令，`git checkout` 精确退回基线 `2bc04e6053`）**：
+
+| 版本 | 失败数 |
+| --- | --- |
+| Q-8 之前 | **13** |
+| Q-8 之后 | **4** |
+| 消除 | **11** |
+| 新增 | **0** |
+
+消除的 11 条正是信号语义组：`signals the registered service process`、
+`signals an unresponsive registered service process`、`stops the registered service even when terminal
+handoff fails`、两个 `can explicitly stop a protocol-incompatible owner`、
+两个 `can explicitly replace a protocol-incompatible owner`、
+`evicts an unresponsive registered service`、`recovers when the starting service it waits for is stopped`、
+`replaces an incompatible registered service`、`signals an incompatible service before starting its replacement`。
+
+**关于"新增"的判断方法**：首轮对照显示新增 2 条（`ensures a missing service with native promises`、
+`waits for a live contender when another native contender fails`）。两者都在 `ensure()` 启动**全新**服务、
+不存在可终止对象的路径上，与 `withdraw()` 无因果关系。遂对两者**在两侧各重复运行 3 次**：
+
+| 测试 | 基线 | 改动后 |
+| --- | --- | --- |
+| `ensures a missing service with native promises` | 通过（1/0 ×3） | 通过（1/0 ×3） |
+| `waits for a live contender when another native contender fails` | **失败（0/1 ×3）** | **失败（0/1 ×3）** |
+
+两者均为**既有抖动**，非本改动引入。
+
+**顺带修掉的测试基础设施缺陷**：`expectPortAvailable` 原为一次性 `Bun.serve`，无重试。
+"进程刚退出端口就立即可用"不是操作系统保证（Windows 上尤其滞后），
+这正是两个 successor 用例报 `EADDRINUSE` 的形态。已改为**有限重试**（20 × 100ms）——
+仍断言端口最终必须可用，只是不再假设它瞬时可用。
+
+**⚠️ 未实测的两点**：
+
+1. **生产轮询周期与客户端等待预算相等（均为 5 秒）**。夹具用 25ms 轮询所以测试秒过，
+   但真实环境下 5s 的等待可能"差一点没等到"而降级为硬杀。**这意味着真实环境的优雅停机可能仍不生效。**
+   缓解方向（未实施）：缩短 `service-registration.ts` 的 `Schedule.spaced("5 seconds")`，
+   或加大客户端的首段等待预算。
+2. **POSIX 行为未在本地验证**。本机只能跑 Windows；那些 `skipIf(win32)` 用例的时序
+   （现在需要 3 段等待 ≈ 15s，超时已调到 25s）**未经实跑**。
+
+**一处我没有查清的矛盾（如实记录）**：改动过程中有一次该测试耗时 **23511ms**，
+与"Windows 上 `SIGTERM` 立即硬杀"的预期矛盾（暗示三段等待全部跑满）。
+后续运行耗时 12.9s，符合预期形状。**我未能定位差异来源**，因此改用平台无关的观测点
+（进程、端口、`.withdrawn`）而非继续依赖 `.signal`。这属于**绕过**而非解决。
+
 ## 五、来源
 
 - Node.js v26.12.0 文档，`process.html#signal-events`

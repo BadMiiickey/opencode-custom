@@ -72,7 +72,9 @@ for (const client of clients) {
     fixture.track(replacement.pid)
 
     expect(await owner.exited).toBe(0)
-    expect(await Bun.file(fixture.registration + ".signal").text()).toBe("SIGTERM")
+    // The owner stops because its registration was withdrawn, not because it was signalled.
+    expect(await Bun.file(fixture.registration + ".withdrawn").exists()).toBe(true)
+    expect(await Bun.file(fixture.registration + ".signal").exists()).toBe(false)
     expect(await Bun.file(fixture.registration + ".handoff-request").exists()).toBe(true)
     expect(starts).toEqual(["version-mismatch"])
     expect(replacement.pid).not.toBe(owner.pid)
@@ -88,7 +90,7 @@ for (const client of clients) {
 
     await client.stop({ file: fixture.registration })
     expect(await owner.exited).toBe(0)
-    expect(await Bun.file(fixture.registration + ".signal").text()).toBe("SIGTERM")
+    expect(await Bun.file(fixture.registration + ".withdrawn").exists()).toBe(true)
     expect(await Bun.file(fixture.registration).exists()).toBe(false)
   })
 }
