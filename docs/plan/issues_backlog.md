@@ -16,6 +16,7 @@
 | R-4 | Plan 按钮切换时连带切换模型、按钮无激活态 | 已核实 | 已修，待验证 |
 | R-5 | todo 端到端渲染 | 已核实可用 | 已修，待确认优化效果 |
 | R-6 | 诊断代码需清理（3 处 `TEMPORARY diagnostic`） | 已核实 | 已清理 |
+| R-7 | 正式版 2.0.29 黑屏：renderer 陷入 ResizeObserver 循环 | 已核实 | 上游未修，待定方案 |
 
 ### R-1：`optional()` 辅助函数的 catch 回退根本不生效
 
@@ -73,6 +74,42 @@ function optional(schema) {
 
 `model.ts` 的 `view.debug`、`interaction.ts` 的 `debug` 类型、`editor.tsx` 的诊断行与
 `console.log` 三处均已删除，零命中验证通过。
+
+### R-7：正式版黑屏（renderer 陷入 ResizeObserver 循环）
+
+**症状**（2026-10-15 实测，用户正式版）：应用长时间黑屏无响应。
+
+**证据**（全部来自 `%APPDATA%\ai.opencode.desktop\logs\`）：
+
+| 项 | 观测值 |
+| --- | --- |
+| 应用版本 | **2.0.29**（`main.log` 首行 `version: '2.0.29', packaged: true`） |
+| 启动 | 16:26:51，服务 16:26:52 就绪，一切正常 |
+| 循环开始 | **16:49:24**（启动后约 22 分钟），此前 renderer 日志只有 1 条启动记录 |
+| 报错 | `ResizeObserver loop completed with undelivered notifications` × **2177 条**，持续至 19:22 |
+| CPU | renderer 累计 2433 秒、GPU 累计 3508 秒；采样期内各占满约 88% 单核 |
+| 伴随日志 | 重启后出现 `[server-request-queue] server thrashing detected`（请求排队超 `stallMs`） |
+
+**已排除的原因**：
+
+- **不是我们的改动**：正式版是打包构建，不含本仓库任何代码。
+- **不是 dev 测试版干扰**：dev 进程 CPU 极低（renderer 累计仅 6.8 秒），且循环起始时间早于 dev 首次启动。
+- **不是更新器**：更新检查在 16:26/16:36/16:46 三次均正常完成，最后一次距循环开始 2.5 分钟，非立即触发。
+- **不是 `be674e3158`（project store 驱逐循环）**：该修复经 `git merge-base --is-ancestor` 确认**已包含在 2.0.29 内**，故非此 bug。
+- **上游无修复**：2.0.29 之后的 36 个提交里，**没有任何**与 resize / observer / layout / loop / perf / hang 相关的提交。
+
+**推断的机制**（证据等级：推断）：renderer 内的 ResizeObserver 反馈环 —— 观察回调改变布局，布局变化又触发回调。
+候选站点（`packages/app/src/**`）：
+
+- `shell/titlebar/tab-nav.tsx:144` —— 观察 tab 容器后 `scheduleTitleOverflow`，标题溢出处理会改变渲染内容
+- `shell/titlebar/recently-closed-tabs-menu.tsx:125`、`settings/workspaces/workspaces.tsx:558`、`settings/search.tsx:45` —— 均为「测量后 setState 截断」模式
+- `home/scroll.ts:107` —— 位置更新与观察器绑定
+- 时间线虚拟化（`timeline-virtualizer`）与观察器组合是同类环路的经典来源
+
+**为什么没能定论**：循环发生在打包构建里，无法下断点；且它是运行约 22 分钟后自发出现，
+未找到稳定复现步骤。**修复需要在源码构建中复现后才能定位。**
+
+**当前处置**：未修复。用户可通过重启应用恢复（重启后正常，`opencode-cli` 进程不中断故会话数据无损）。
 
 ---
 
