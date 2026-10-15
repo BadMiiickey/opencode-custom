@@ -77,6 +77,24 @@ dev 桌面端崩溃时，它 spawn 的 CLI 服务进程**不会自动退出**，
 
 用它包住长命令后，进程结束前看不到任何进度。排查长时间任务时不要这样包。
 
+### 浅克隆无法推送到新仓库
+
+用 `--depth N` 克隆的仓库推送时会失败：
+
+```
+remote: fatal: did not receive expected object <sha>
+error: remote unpack failed: index-pack failed
+```
+
+原因：浅克隆在边界处缺少历史对象，接收端在校验对象图时拿不到。
+**解法**：先 `git fetch --unshallow <remote>` 补全历史再推。
+本仓库补全后为 20354 提交（`.git` 体积见下）。
+
+### `git push` 会触发 husky 的 pre-push 钩子
+
+本仓库 `.husky/` 配了 pre-push，会跑完整的 `bun run check`（36 个包 typecheck，约 1 分钟）。
+推送失败时容易误判为"推送本身出错"，实际是钩子先跑了一遍校验。
+
 ---
 
 ## 完成记录
