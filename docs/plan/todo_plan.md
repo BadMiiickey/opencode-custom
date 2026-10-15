@@ -103,16 +103,28 @@
       | 项 | 位置 |
       | --- | --- |
       | 渲染插入点 | `packages/app/src/session/composer/region.tsx:318`，紧邻既有的 `SessionQueuePanel`，两者同在 `<div class="relative">` 内、`Composer` 之上 |
-      | 可效仿的既有模式 | `SessionQueuePanel`（`session/composer/queue-panel.tsx:18`）接收一个 view model prop，由 region 传入 |
-      | 数据来源 | `session` model 已暴露 `messages()`（`session/model.ts:65`，内部为 `data.session.message.list(id)`）；`createActiveSessionRegion` 已接收 `session` 与 `timeline`（`session/screen.tsx:216`） |
-      | 折叠逻辑 | 与 core 侧 `lastWrittenList()` 同构：倒序找最后一个 `todowrite` 工具调用，取其 `input.todos` |
+      | 所在组件 | `ActiveSessionComposerRegion`（`region.tsx:292`）—— 同时持有 `props.session`（`SessionModel`）与渲染点，**无需穿过 region controller** |
+      | 数据来源 | `props.session.messages()`（`session/model.ts:65`，内部为 `data.session.message.list(id)`） |
+      | 可效仿的既有模式 | `SessionQueuePanel`（`session/composer/queue-panel.tsx:18`）接收一个 view model prop |
       | 文案 | 复用已有的 `ui.tool.todo` / `.progress` / `.status.*` 键，无需新增 |
+
+      **折叠逻辑（必须按此形状，否则会崩）**：
+
+      消息部件来自 `packages/schema/src/session-message.ts`：
+
+      - 找 `type === "tool"` 且 `name === "todowrite"` 的部件（`:162-175`，`AssistantTool`）；
+      - 读它的 `state`（`ToolState`，`:156` 的按 `status` 判别联合）；
+      - **⚠️ `status === "streaming"` 时 `input` 是 `Schema.String`（原始字符串），不是对象**（`:127-130`）；
+        只有 `running` / `completed` / `error` 三种状态下 `input` 才是 `Record<string, unknown>`。
+        **必须先排除 streaming 再读 `state.input.todos`**，否则等于对字符串取属性。
+      - 倒序扫描取**最后一次**写入；`todos` 非数组或为空则视为无面板。
 
       **建议的最小版本**（降低返工成本）：仅在存在清单时显示；最多 5 行，超出显示「还有 N 项」；
       完成项删除线；全部完成时隐藏；不做交互与动画。
 
       **为什么没有直接动手**：这是纯视觉功能，我无法自行确认效果。Plan 按钮已因「按钮无激活态」
-      返工过一轮，故先落方案再实施。用户确认设计后开工成本很低。
+      返工过一轮。另需注意：本会话中我多次因**凭猜测写类型/形状**而返工（最近的例子是把
+      `Schema.Schema.All` 当成存在的类型），因此这类需实机确认的 UI 改动应先由你认可设计。
 
 ## 完成记录
 
