@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/any.json",
+  "local-test": {
+    "//": "Local test environment corrections. All knobs live here; local-test.ps1 takes no arguments.",
+    "//encoding": "ASCII only on purpose: Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI, so non-ASCII here breaks ConvertFrom-Json. See docs/plan/environment_plan.md.",
+    "bun": "bun",
+    "tempRoot": "C:\\opencode-test-tmp",
+    "shellScanPwsh": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "suites": [
+      {
+        "name": "core",
+        "cwd": "packages/core",
+        "args": ["run", "test"],
+        "timeoutMs": 1200000,
+        "note": "official entry script/test.ts; isolates HOME/XDG and builds its workspace under tempRoot"
+      },
+      {
+        "name": "client",
+        "cwd": "packages/client",
+        "args": ["test"],
+        "timeoutMs": 300000,
+        "note": "17 Windows signal-semantics cases cannot pass here; see R-2 in docs/plan/issues_backlog.md"
+      },
+      {
+        "name": "app",
+        "cwd": "packages/app",
+        "args": ["test", "--conditions=solid", "--preload", "./happydom.ts", "./src"],
+        "timeoutMs": 300000,
+        "note": "--conditions=solid is required, otherwise JSX fails at runtime with jsxDEV not found"
+      },
+      {
+        "name": "session-ui",
+        "cwd": "packages/session-ui",
+        "args": ["test", "src"],
+        "timeoutMs": 300000
+      },
+      {
+        "name": "typecheck",
+        "cwd": ".",
+        "args": ["run", "check"],
+        "timeoutMs": 900000,
+        "note": "the repository's only authoritative gate: lint plus typecheck across 36 packages"
+      }
+    ]
+  }
+}

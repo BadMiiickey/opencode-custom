@@ -10,34 +10,40 @@
 
 | 编号 | 问题 | 证据等级 | 状态 |
 | --- | --- | --- | --- |
-| R-1 | `tool-renderer.tsx` 的 `optional()` 辅助函数回退失效 | 已核实 | 待处理 |
+| R-1 | 工具输入解码顶层非对象时抛异常（`toolInput`） | 已核实并更正 | **已修** + 8 例测试 |
 | R-2 | `packages/client` 既有测试失败 22 项 | 已核实（样本量 1） | 待排查 |
 | R-3 | `packages/core` 既有测试失败 40 项 | 已核实（样本量 1） | 待排查 |
 | R-4 | Plan 按钮切换时连带切换模型、按钮无激活态 | 已核实 | 已修，待验证 |
 | R-5 | todo 端到端渲染 | 已核实可用 | 已修，待确认优化效果 |
 | R-6 | 诊断代码需清理（3 处 `TEMPORARY diagnostic`） | 已核实 | 已清理 |
 | R-7 | 正式版 2.0.29 黑屏：renderer 陷入 ResizeObserver 循环 | 已核实 | 上游未修，待定方案 |
+| R-8 | 变体芯片（Default）在鼠标离开 composer 时隐藏 | 已核实 | 已按用户要求改为常显 |
 
-### R-1：`optional()` 辅助函数的 catch 回退根本不生效
+### R-1：工具输入解码在顶层非对象时会抛异常（已修）
 
-**位置**：`packages/session-ui/src/tools/tool-renderer.tsx`
+**位置**：`packages/session-ui/src/tools/tool-renderer.tsx` 的 `toolInput`
 
-```ts
-function optional(schema) {
-  const field = Schema.optional(schema)
-  return Schema.catchDecoding<typeof field>(() => Effect.succeed(Option.none()))(field)
-}
-```
+**我先前的表述有误，此处更正**。我起初写成"`optional()` 的回退根本不生效"，
+实测后确认那是**过度概括**——真实行为分两层：
 
-**实测行为**（本地实测，session-ui 测试运行，bun 1.4.2）：传入畸形输入
-（`{todos: "not a list"}`、`null`、缺字段、非法枚举值）**照样抛异常**；
-只有 `undefined` 能返回 undefined。
+| 输入 | 旧写法 `decodeUnknownSync` | 新写法 `decodeUnknownOption` |
+| --- | --- | --- |
+| 正常 / 部分（流式中） | ok | `Some` |
+| **字段值畸形**（如 `path: 123`） | **ok，字段被丢弃**（`catchDecoding` 在字段级有效） | `Some`，字段同样被丢弃 |
+| **顶层非对象**（`null` / `undefined` / 字符串 / 数字） | **抛异常** | `None` → 回退空对象 |
 
-**影响面**：所有使用 `toolInput(...)` 的渲染器在遇到畸形工具输入时存在同样风险。
-正常路径不触发，所以长期未暴露。**这是本次 todo 渲染崩溃的同源问题。**
+所以真实风险范围窄得多：**只有顶层输入不是对象时才会抛**。
+而工具部件在流式到达时其 `input` 可能尚未成为对象，此时渲染器会直接崩。
 
-**未处理原因**：影响面大、超出当前需求。修复方向是改用 `Schema.decodeUnknownOption`，
-但需评估所有调用点。
+**修复**：顶层改为 `Schema.decodeUnknownOption`，失败返回空对象（所有字段都是 optional，
+空对象是合法实例）。**未改动 `optional()` 辅助函数，也未触碰任何调用点**（调用形状不变）。
+
+**测试**：`packages/session-ui/src/tools/tool-input.test.ts`（8 例）覆盖正常、流式半成品、
+字段畸形、以及 5 种曾导致抛异常的顶层输入。
+
+**该测试的已知局限**：`toolInput` 是模块私有，仓库禁止为测试新增导出，因此测试是**镜像**
+（复刻同一套 schema 与解码方式）。它能钉住"解码必须不抛"这一契约与字段行为，
+但**改动生产代码不会让它失败**。要更强的保障需重构为可注入的解码器。
 
 ### R-2 / R-3：既有测试失败
 
@@ -75,6 +81,28 @@ function optional(schema) {
 `model.ts` 的 `view.debug`、`interaction.ts` 的 `debug` 类型、`editor.tsx` 的诊断行与
 `console.log` 三处均已删除，零命中验证通过。
 
+### R-8：变体芯片（Default）随鼠标离开而隐藏（已按用户要求改为常显）
+
+**现象**：推理等级显示为 `Default` 时，鼠标不在 composer 上则该芯片消失；移入又出现。
+
+**这是上游的有意设计**，非缺陷：`packages/app/src/composer/editor/editor.css` 中的规则
+
+```css
+@media (hover: hover) {
+  [data-component="composer"]:not(:hover) .composer-variant-default:not(:focus-visible, [data-expanded]) {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+```
+
+用意是减少视觉噪音 —— 只有变体为 `default` 时才隐藏，选了非默认变体则始终显示。
+
+**处置**：用户要求常显，已移除该规则（连带包裹它的 `@media (hover: hover)`）。
+`editor.tsx` 里 `composer-variant-default` 的类名赋值保留但已无效果，以保持改动最小。
+
+**为何 `@media` 包裹很重要**：它使规则只在支持 hover 的设备生效，故改动不影响触屏布局。
+
 ### R-7：正式版黑屏（renderer 陷入 ResizeObserver 循环）
 
 **症状**（2026-10-15 实测，用户正式版）：应用长时间黑屏无响应。
@@ -99,6 +127,11 @@ function optional(schema) {
 - **上游无修复**：2.0.29 之后的 36 个提交里，**没有任何**与 resize / observer / layout / loop / perf / hang 相关的提交。
 
 **推断的机制**（证据等级：推断）：renderer 内的 ResizeObserver 反馈环 —— 观察回调改变布局，布局变化又触发回调。
+
+**空闲假设已被部分否证**（2026-10-15 追加实测）：用户怀疑是长时间挂后台无操作所致。
+但 dev 测试版（同一份渲染代码）**空闲约 30 分钟未复现**，renderer 累计仅 7.2 秒 CPU。
+故单纯空闲不足以触发；更可能是**空闲叠加一个内容量大的会话视图**——
+布局代价足够大时观察器才无法收敛。**该假设尚未被证实。**
 候选站点（`packages/app/src/**`）：
 
 - `shell/titlebar/tab-nav.tsx:144` —— 观察 tab 容器后 `scheduleTitleOverflow`，标题溢出处理会改变渲染内容

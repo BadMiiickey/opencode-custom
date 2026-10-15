@@ -77,6 +77,36 @@ dev 桌面端崩溃时，它 spawn 的 CLI 服务进程**不会自动退出**，
 
 用它包住长命令后，进程结束前看不到任何进度。排查长时间任务时不要这样包。
 
+### PowerShell 5.1 把无 BOM 的 UTF-8 当 ANSI 读（连踩两次）
+
+本机默认 shell 是 Windows PowerShell 5.1，它**不假定 `.ps1` / `.json` 是 UTF-8**：
+无 BOM 时按 ANSI 解码，于是中文注释、中文字符串全部损坏。
+
+两次实际后果：
+
+1. `script/local-test.ps1`（含中文注释）**语法解析直接失败**（报 3 处「字符串缺少终止符」）；
+2. `script/local-test.json`（含中文 note）**`ConvertFrom-Json` 报错**，配置根本读不出来。
+
+更危险的是中间过程：用 `Get-Content -Raw` 读一个已损坏的文件再写回，会把损坏**固化**成新的文件内容。
+
+**规则**：凡是要被 PowerShell 5.1 解析的脚本或配置，**一律纯 ASCII**（英文注释）。
+需要中文说明的内容写进 `docs/`，不要放进 `.ps1` / `.json`。
+
+**排查方法**（不依赖任何工具）：
+
+```powershell
+$bytes = [System.IO.File]::ReadAllBytes("<文件>")
+@($bytes | Where-Object { $_ -gt 127 }).Count   # 非 0 即有风险
+```
+
+以及不执行、只做语法检查：
+
+```powershell
+$errors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseFile("<脚本>", [ref]$null, [ref]$errors)
+$errors
+```
+
 ### 浅克隆无法推送到新仓库
 
 用 `--depth N` 克隆的仓库推送时会失败：
